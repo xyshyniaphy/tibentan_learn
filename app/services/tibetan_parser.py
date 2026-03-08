@@ -1,18 +1,17 @@
-import re
 import json
-import asyncio
 import httpx
-from typing import List, Tuple, Dict
+from typing import List, Dict
 from app.config import get_settings
 
 settings = get_settings()
 
 PROCESS_PROMPT = """Analyze this Tibetan text and extract meaningful phrases with translations.
 
-For each phrase:
-- Keep compound words and names together (e.g., ཨོ་རྒྱན is ONE phrase, not split)
-- Group syllables that form semantic units together
-- Honorific prefixes should stay with their words
+Rules:
+- Group syllables that form semantic units together (compound words, names, phrases)
+- Do NOT split on tsheg (་) - keep meaningful phrases together
+- Example: ཨོ་རྒྱན should be ONE phrase, not split into ཨོ and རྒྱན
+- Example: བསྐུར་བྱིན་བརླབས should be ONE phrase meaning "blessed/empowered"
 
 Return ONLY a valid JSON array with NO markdown formatting:
 [{"tibetan": "phrase", "phonetic": "romanization", "chinese": "中文翻译", "english": "translation", "order": 0}]
@@ -23,10 +22,13 @@ Tibetan text:
 
 async def process_tibetan_text_async(text: str) -> List[Dict]:
     """
-    Use AI to segment and translate Tibetan text in one step.
-    Returns list of translation dictionaries.
+    Use AI to segment and translate Tibetan text.
+    AI decides all phrase boundaries - no Python splitting.
     """
     text = text.strip()
+
+    if not text:
+        return []
 
     async with httpx.AsyncClient(timeout=120.0) as client:
         try:
@@ -106,42 +108,17 @@ def parse_process_response(content: str) -> List[Dict]:
         return []
 
 
-def fallback_extract(text: str) -> List[Tuple[int, str]]:
+def get_title_from_text(text: str, max_phrases: int = 3) -> str:
     """
-    Fallback extraction using tsheg delimiter when AI is unavailable.
+    Generate a title from Tibetan text.
+    Uses first part of the text directly.
     """
     text = text.strip()
-    raw_words = re.split(r'[་། །\s]+', text)
+    if not text:
+        return "无标题"
 
-    words = []
-    seen = set()
-    order = 0
-
-    for word in raw_words:
-        if not word:
-            continue
-        cleaned = re.sub(r'[^\u0F00-\u0FFF]', '', word)
-        if cleaned and cleaned not in seen:
-            words.append((order, cleaned))
-            seen.add(cleaned)
-            order += 1
-
-    return words
-
-
-def extract_tibetan_words(text: str) -> List[Tuple[int, str]]:
-    """
-    Extract Tibetan phrases - now returns empty list since we use combined processing.
-    Kept for compatibility.
-    """
-    return []
-
-
-def get_title_from_text(text: str, max_words: int = 5) -> str:
-    """
-    Generate a title from the first few phrases of Tibetan text.
-    Uses simple extraction for title generation.
-    """
-    words = fallback_extract(text)
-    title_words = [w for _, w in words[:max_words]]
-    return '་'.join(title_words) if title_words else "无标题"
+    # Just use first ~30 characters of the original text as title
+    # Let it be natural without splitting
+    if len(text) > 30:
+        return text[:30] + "..."
+    return text
