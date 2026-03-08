@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import Job, Output
+from app.models import Job, Word
 from app.services.html_generator import generate_tutorial_html
 
 router = APIRouter(tags=["pages"])
@@ -46,11 +46,14 @@ async def result_page(request: Request, job_id: str, db: Session = Depends(get_d
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    output = db.query(Output).filter(Output.job_id == job_id).first()
-    if not output:
-        raise HTTPException(status_code=404, detail="Result not found")
+    if job.status != "completed":
+        raise HTTPException(status_code=400, detail="Job not completed yet")
+
+    # Get words and generate HTML on-demand
+    words = db.query(Word).filter(Word.job_id == job_id).order_by(Word.word_order).all()
+    html_content = generate_tutorial_html(words, job.title or "Tibetan Tutorial")
 
     return request.app.state.templates.TemplateResponse(
         "result.html",
-        {"request": request, "job": job, "html_content": output.html_content}
+        {"request": request, "job": job, "html_content": html_content}
     )

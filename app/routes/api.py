@@ -1,6 +1,8 @@
 import uuid
 import asyncio
 from datetime import datetime
+from typing import List
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from sqlalchemy.orm import Session
@@ -78,13 +80,7 @@ def process_job(job_id: str, db_url: str):
                 job.processed_words += 1
                 db.commit()
 
-        # Generate HTML
-        db_words = db.query(Word).filter(Word.job_id == job_id).order_by(Word.word_order).all()
-        html_content = generate_tutorial_html(db_words, job.title or "Tibetan Tutorial")
-
-        output = Output(job_id=job_id, html_content=html_content)
-        db.add(output)
-
+        # Mark as completed (HTML will be generated on-demand when downloading)
         job.status = "completed"
         job.completed_at = datetime.utcnow()
         db.commit()
@@ -151,22 +147,55 @@ async def get_progress(job_id: str, db: Session = Depends(get_db)):
 
 @router.get("/download/{job_id}")
 async def download_html(job_id: str, db: Session = Depends(get_db)):
-    """Download the generated HTML file."""
+    """Download the generated HTML file (generated on-demand)."""
     from urllib.parse import quote
 
-    output = db.query(Output).filter(Output.job_id == job_id).first()
-    if not output:
-        raise HTTPException(status_code=404, detail="Result not found")
-
     job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job.status != "completed":
+        raise HTTPException(status_code=400, detail="Job not completed yet")
+
+    # Generate HTML on-demand
+    words = db.query(Word).filter(Word.job_id == job_id).order_by(Word.word_order).all()
+    html_content = generate_tutorial_html(words, job.title or "Tibetan Tutorial")
+
     # Use ASCII-safe filename with URL encoding for the Content-Disposition
     filename = f"tibetan_tutorial_{job_id[:8]}.html"
     encoded_filename = quote(job.title or "tibetan_tutorial")
 
     return PlainTextResponse(
-        content=output.html_content,
+        content=html_content,
         media_type="text/html",
         headers={
             "Content-Disposition": f"attachment; filename=\"{filename}\"; filename*=UTF-8''{encoded_filename}.html"
         }
     )
+
+
+class DeleteRequest(BaseModel):
+    job_ids: List[str]
+
+
+@router.post("/jobs/delete")
+async def delete_jobs(
+    data: DeleteRequest,
+    db: Session = Depends(get_db)
+):
+    """Delete selected jobs."""
+    from sqlalchemy import or_
+
+    if not data.job_ids:
+        raise HTTPException(status_code=400, detail="No jobs selected")
+
+    deleted_count = 0
+    for job_id in data.job_ids:
+        job = db.query(Job).filter(Job.id == job_id).first()
+        if job:
+            # Cascade delete will handle words and outputs
+            db.delete(job)
+            deleted_count += 1
+
+    db.commit()
+    return {"deleted": deleted_count}
