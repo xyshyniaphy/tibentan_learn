@@ -14,7 +14,7 @@ Rules:
 - Example: བསྐུར་བྱིན་བརླབས should be ONE phrase meaning "blessed/empowered"
 
 Return ONLY a valid JSON array with NO markdown formatting:
-[{"tibetan": "phrase", "phonetic": "romanization", "chinese": "中文翻译", "english": "translation", "order": 0}]
+[{{"tibetan": "phrase", "phonetic": "romanization", "chinese": "中文翻译", "english": "translation", "order": 0}}]
 
 Tibetan text:
 {text}"""
@@ -50,14 +50,20 @@ async def process_tibetan_text_async(text: str) -> List[Dict]:
 
             if response.status_code == 200:
                 data = response.json()
-                content = data.get("content", [{}])[0].get("text", "")
-                return parse_process_response(content)
+                content = data.get("content", [{}])
+                if content and len(content) > 0:
+                    text_content = content[0].get("text", "")
+                    return parse_process_response(text_content)
+                return []
             else:
                 print(f"API error: {response.status_code} - {response.text}")
                 return []
 
+        except httpx.RequestError as e:
+            print(f"Request error: {type(e).__name__}: {e}")
+            return []
         except Exception as e:
-            print(f"Error processing text: {e}")
+            print(f"Unexpected error: {type(e).__name__}: {e}")
             return []
 
 
@@ -68,43 +74,49 @@ def parse_process_response(content: str) -> List[Dict]:
     try:
         # Clean up the response
         content = content.strip()
+
+        # Remove markdown code blocks if present
         if content.startswith("```"):
             lines = content.split("\n")
             # Remove first line (```json or ```) and last line (```)
-            content = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+            if len(lines) > 2:
+                content = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
         content = content.strip()
 
         parsed = json.loads(content)
 
-        if isinstance(parsed, list):
-            results = []
-            seen = set()
-            for item in parsed:
-                if not isinstance(item, dict):
-                    continue
+        if not isinstance(parsed, list):
+            print(f"Response is not a list: {type(parsed)}")
+            return []
 
-                tibetan = item.get("tibetan", "")
-                if not tibetan or tibetan in seen:
-                    continue
-                seen.add(tibetan)
+        results = []
+        seen = set()
+        for item in parsed:
+            if not isinstance(item, dict):
+                continue
 
-                results.append({
-                    "tibetan": tibetan,
-                    "phonetic": item.get("phonetic"),
-                    "chinese": item.get("chinese"),
-                    "english": item.get("english"),
-                    "order": item.get("order", len(results))
-                })
+            tibetan = item.get("tibetan", "")
+            if not tibetan or tibetan in seen:
+                continue
+            seen.add(tibetan)
 
-            # Sort by order
-            results.sort(key=lambda x: x.get("order", 0))
-            return results
+            results.append({
+                "tibetan": tibetan,
+                "phonetic": item.get("phonetic"),
+                "chinese": item.get("chinese"),
+                "english": item.get("english"),
+                "order": item.get("order", len(results))
+            })
 
-        return []
+        # Sort by order
+        results.sort(key=lambda x: x.get("order", 0))
+        return results
 
     except json.JSONDecodeError as e:
         print(f"JSON parse error: {e}")
-        print(f"Content: {content[:500]}")
+        return []
+    except Exception as e:
+        print(f"Parse error: {type(e).__name__}: {e}")
         return []
 
 
@@ -118,7 +130,6 @@ def get_title_from_text(text: str, max_phrases: int = 3) -> str:
         return "无标题"
 
     # Just use first ~30 characters of the original text as title
-    # Let it be natural without splitting
     if len(text) > 30:
         return text[:30] + "..."
     return text

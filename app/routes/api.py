@@ -16,6 +16,11 @@ from app.utils.ip_check import is_ip_allowed
 router = APIRouter(prefix="/api", tags=["api"])
 
 
+def run_process_job(job_id: str, db_url: str):
+    """Sync wrapper to run the async job processing."""
+    asyncio.run(process_job_async(job_id, db_url))
+
+
 async def process_job_async(job_id: str, db_url: str):
     """Async background task to process a translation job."""
     from sqlalchemy import create_engine
@@ -98,10 +103,10 @@ async def generate(
     db.add(job)
     db.commit()
 
-    # Start async background processing
+    # Start background processing
     from app.config import get_settings
     settings = get_settings()
-    asyncio.create_task(process_job_async(job_id, settings.database_url))
+    background_tasks.add_task(run_process_job, job_id, settings.database_url)
 
     return {"job_id": job_id, "redirect": f"/progress/{job_id}"}
 
