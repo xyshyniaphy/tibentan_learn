@@ -6,14 +6,16 @@ from app.config import get_settings
 
 settings = get_settings()
 
-PROMPT_TEMPLATE = """Translate these Tibetan words. For each word provide:
-- phonetic: simple romanized pronunciation (e.g., "ta-she")
-- chinese: simple Chinese translation
+PROMPT_TEMPLATE = """Translate these Tibetan phrases/words. Each item may be a single word or a compound phrase. For each phrase provide:
+- tibetan: the original Tibetan text (exactly as provided)
+- phonetic: simple romanized pronunciation (e.g., "ta-she de-le" for multi-syllable phrases)
+- chinese: Chinese translation (can be a phrase or single word)
 - english: English translation
 
-Return ONLY a valid JSON array with no markdown formatting: [{{"tibetan": "word", "phonetic": "...", "chinese": "...", "english": "..."}}]
+Return ONLY a valid JSON array with no markdown formatting:
+[{{"tibetan": "phrase", "phonetic": "...", "chinese": "...", "english": "..."}}]
 
-Words: {words}"""
+Phrases to translate: {words}"""
 
 BATCH_SIZE = 12
 MAX_RETRIES = 3

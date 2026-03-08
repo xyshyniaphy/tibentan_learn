@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Job, Word, Output
 from app.schemas import JobCreate, JobResponse, ProgressResponse
-from app.services.tibetan_parser import extract_tibetan_words, get_title_from_text
+from app.services.tibetan_parser import segment_tibetan_text_async, fallback_extract, get_title_from_text
 from app.services.translator import translate_words
 from app.services.html_generator import generate_tutorial_html
 from app.utils.ip_check import is_ip_allowed
@@ -17,8 +17,8 @@ from app.utils.ip_check import is_ip_allowed
 router = APIRouter(prefix="/api", tags=["api"])
 
 
-def process_job(job_id: str, db_url: str):
-    """Background task to process a translation job."""
+async def process_job_async(job_id: str, db_url: str):
+    """Async background task to process a translation job."""
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
 
@@ -34,8 +34,13 @@ def process_job(job_id: str, db_url: str):
         job.status = "processing"
         db.commit()
 
-        # Extract words
-        words_data = extract_tibetan_words(job.input_text)
+        # Extract phrases using AI-based segmentation
+        try:
+            words_data = await segment_tibetan_text_async(job.input_text)
+        except Exception as e:
+            print(f"AI segmentation failed, using fallback: {e}")
+            words_data = fallback_extract(job.input_text)
+
         job.total_words = len(words_data)
 
         if not words_data:
@@ -60,8 +65,8 @@ def process_job(job_id: str, db_url: str):
         # Get words to translate
         tibetan_words = [w for _, w in words_data]
 
-        # Translate (run async function in sync context)
-        translations = asyncio.run(translate_words(tibetan_words))
+        # Translate (already async)
+        translations = await translate_words(tibetan_words)
 
         # Update words with translations
         translation_map = {}
@@ -88,6 +93,7 @@ def process_job(job_id: str, db_url: str):
 
     except Exception as e:
         import traceback
+        traceback.print_exc()
         job = db.query(Job).filter(Job.id == job_id).first()
         if job:
             job.status = "failed"
@@ -118,10 +124,10 @@ async def generate(
     db.add(job)
     db.commit()
 
-    # Start background processing
+    # Start async background processing
     from app.config import get_settings
     settings = get_settings()
-    background_tasks.add_task(process_job, job_id, settings.database_url)
+    asyncio.create_task(process_job_async(job_id, settings.database_url))
 
     return {"job_id": job_id, "redirect": f"/progress/{job_id}"}
 
