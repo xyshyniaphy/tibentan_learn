@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}{{ job.title or "Tutorial" }} - Tibetan Learning{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h1>📖 {{ job.title or "Tibetan Tutorial" }}</h1>
+        <div style="display: flex; gap: 10px;">
+            <a href="/download/{{ job.id }}" class="btn btn-secondary">⬇ Download HTML</a>
+            <a href="/input" class="btn btn-primary">+ New Tutorial</a>
+        </div>
+    </div>
+
+    <div style="background: #FFF; border-radius: 10px; overflow: hidden; border: 1px solid #DDD;">
+        <iframe
+            srcdoc="{{ html_content|e }}"
+            style="width: 100%; height: 800px; border: none;"
+            title="Tutorial Preview"
+        ></iframe>
+    </div>
+</div>
+
+<div class="card">
+    <h3>📄 Raw HTML</h3>
+    <p style="color: #666; margin-bottom: 15px;">Copy or download the generated HTML file:</p>
+    <textarea
+        readonly
+        style="width: 100%; height: 200px; padding: 15px; border: 1px solid #DDD; border-radius: 8px; font-family: monospace; font-size: 0.9em;"
+        onclick="this.select();"
+    >{{ html_content }}</textarea>
+</div>
+{% endblock %}
