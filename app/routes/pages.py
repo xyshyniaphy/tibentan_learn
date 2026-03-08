@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Job, Word
 from app.services.html_generator import generate_tutorial_html
+from app.utils.ip_check import is_ip_allowed
 
 router = APIRouter(tags=["pages"])
 
@@ -21,6 +22,12 @@ async def home(request: Request, db: Session = Depends(get_db)):
 @router.get("/input", response_class=HTMLResponse)
 async def input_page(request: Request):
     """Page to input Tibetan text."""
+    if not is_ip_allowed(request):
+        return request.app.state.templates.TemplateResponse(
+            "403.html",
+            {"request": request},
+            status_code=403
+        )
     return request.app.state.templates.TemplateResponse(
         "input.html",
         {"request": request}

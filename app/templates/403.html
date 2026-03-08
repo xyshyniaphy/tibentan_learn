@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}403 禁止访问 - 藏语学习{% endblock %}
+
+{% block content %}
+<div class="card" style="text-align: center; padding: 60px 30px;">
+    <div style="font-size: 5em; color: #8B0000; margin-bottom: 20px;">🚫</div>
+    <h1 style="color: #8B0000; margin-bottom: 20px;">403 禁止访问</h1>
+    <p style="color: #666; font-size: 1.2em; margin-bottom: 30px;">
+        您没有权限访问此页面
+    </p>
+    <p style="color: #999; margin-bottom: 30px;">
+        此功能仅限本地访问。如需访问，请联系管理员将您的 IP 添加到白名单。
+    </p>
+    <a href="/" class="btn btn-primary">返回首页</a>
+</div>
+{% endblock %}

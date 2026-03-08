@@ -3,7 +3,7 @@ import asyncio
 from datetime import datetime
 from typing import List
 from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -12,6 +12,7 @@ from app.schemas import JobCreate, JobResponse, ProgressResponse
 from app.services.tibetan_parser import extract_tibetan_words, get_title_from_text
 from app.services.translator import translate_words
 from app.services.html_generator import generate_tutorial_html
+from app.utils.ip_check import is_ip_allowed
 
 router = APIRouter(prefix="/api", tags=["api"])
 
@@ -180,10 +181,14 @@ class DeleteRequest(BaseModel):
 
 @router.post("/jobs/delete")
 async def delete_jobs(
+    request: Request,
     data: DeleteRequest,
     db: Session = Depends(get_db)
 ):
     """Delete selected jobs."""
+    if not is_ip_allowed(request):
+        raise HTTPException(status_code=403, detail="Access denied: IP not whitelisted")
+
     from sqlalchemy import or_
 
     if not data.job_ids:

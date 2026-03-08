@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}{{ job.title or "Tutorial" }} - Tibetan Learning{% endblock %}
+{% block title %}{{ job.title or "教程" }} - 藏语学习{% endblock %}
 
 {% block content %}
 <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h1>📖 {{ job.title or "Tibetan Tutorial" }}</h1>
+        <h1>📖 {{ job.title or "藏语教程" }}</h1>
         <div style="display: flex; gap: 10px;">
-            <a href="/api/download/{{ job.id }}" class="btn btn-secondary">⬇ Download HTML</a>
-            <a href="/input" class="btn btn-primary">+ New Tutorial</a>
+            <a href="/api/download/{{ job.id }}" class="btn btn-secondary">⬇ 下载 HTML</a>
+            <a href="/input" class="btn btn-primary">+ 新建教程</a>
         </div>
     </div>
 
@@ -16,7 +16,7 @@
         <iframe
             srcdoc="{{ html_content|e }}"
             style="width: 100%; height: 800px; border: none;"
-            title="Tutorial Preview"
+            title="教程预览"
         ></iframe>
     </div>
 </div>

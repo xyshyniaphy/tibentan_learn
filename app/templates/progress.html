@@ -1,18 +1,18 @@
 {% extends "base.html" %}
 
-{% block title %}Progress - Tibetan Learning{% endblock %}
+{% block title %}处理中 - 藏语学习{% endblock %}
 
 {% block content %}
 <div class="card">
-    <h1>⏳ Processing Tutorial</h1>
+    <h1>⏳ 正在处理教程</h1>
     <p style="color: #666; margin-bottom: 20px;">
-        <strong>{{ job.title or "Untitled" }}</strong>
+        <strong>{{ job.title or "无标题" }}</strong>
     </p>
 
     <div style="background: #F5F5F5; border-radius: 10px; padding: 20px; margin-bottom: 20px;">
         <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-            <span id="statusText">Status: <span class="status-badge status-{{ job.status }}">{{ job.status|upper }}</span></span>
-            <span id="progressText">0 / {{ job.total_words }} words</span>
+            <span id="statusText">状态：<span class="status-badge status-{{ job.status }}">{% if job.status == "pending" %}等待中{% elif job.status == "processing" %}处理中{% elif job.status == "completed" %}已完成{% elif job.status == "failed" %}失败{% else %}{{ job.status }}{% endif %}</span></span>
+            <span id="progressText">0 / {{ job.total_words }} 词</span>
         </div>
 
         <div style="background: #DDD; border-radius: 10px; height: 30px; overflow: hidden;">
@@ -26,13 +26,13 @@
     </div>
 
     <div id="resultSection" style="display: none; text-align: center;">
-        <p style="color: #155724; font-size: 1.2em; margin-bottom: 20px;">✅ Tutorial generated successfully!</p>
-        <a id="viewBtn" href="/result/{{ job.id }}" class="btn btn-primary">View Tutorial</a>
+        <p style="color: #155724; font-size: 1.2em; margin-bottom: 20px;">✅ 教程生成成功！</p>
+        <a id="viewBtn" href="/result/{{ job.id }}" class="btn btn-primary">查看教程</a>
     </div>
 
     <div id="errorSection" style="display: none; text-align: center;">
         <p id="errorMessage" style="color: #721C24; font-size: 1.2em; margin-bottom: 20px;"></p>
-        <a href="/input" class="btn btn-secondary">Try Again</a>
+        <a href="/input" class="btn btn-secondary">重试</a>
     </div>
 </div>
 {% endblock %}
@@ -41,6 +41,16 @@
 <script>
 const jobId = "{{ job.id }}";
 
+function getStatusText(status) {
+    const statusMap = {
+        'pending': '等待中',
+        'processing': '处理中',
+        'completed': '已完成',
+        'failed': '失败'
+    };
+    return statusMap[status] || status;
+}
+
 async function updateProgress() {
     try {
         const response = await fetch(`/api/progress/${jobId}`);
@@ -48,7 +58,7 @@ async function updateProgress() {
 
         // Update UI
         document.getElementById('progressText').textContent =
-            `${data.processed_words} / ${data.total_words} words`;
+            `${data.processed_words} / ${data.total_words} 词`;
         document.getElementById('percentText').textContent =
             `${data.progress_percent}%`;
         document.getElementById('progressBar').style.width =
@@ -56,7 +66,7 @@ async function updateProgress() {
 
         // Update status badge
         const statusText = document.getElementById('statusText');
-        statusText.innerHTML = `Status: <span class="status-badge status-${data.status}">${data.status.toUpperCase()}</span>`;
+        statusText.innerHTML = `状态：<span class="status-badge status-${data.status}">${getStatusText(data.status)}</span>`;
 
         if (data.status === 'completed') {
             document.getElementById('resultSection').style.display = 'block';
@@ -65,7 +75,7 @@ async function updateProgress() {
         } else if (data.status === 'failed') {
             document.getElementById('errorSection').style.display = 'block';
             document.getElementById('errorMessage').textContent =
-                '❌ Processing failed. Please try again.';
+                '❌ 处理失败，请重试。';
             return; // Stop polling
         }
 

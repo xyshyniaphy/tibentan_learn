@@ -1,16 +1,16 @@
 {% extends "base.html" %}
 
-{% block title %}Create Tutorial - Tibetan Learning{% endblock %}
+{% block title %}创建教程 - 藏语学习{% endblock %}
 
 {% block content %}
 <div class="card">
-    <h1>📝 Create New Tutorial</h1>
-    <p style="color: #666; margin-bottom: 30px;">Paste Tibetan text below to generate a word-by-word translation tutorial.</p>
+    <h1>📝 创建新教程</h1>
+    <p style="color: #666; margin-bottom: 30px;">在下方粘贴藏语文本，系统将生成逐词翻译教程。</p>
 
     <form id="createForm">
         <div style="margin-bottom: 20px;">
             <label for="text" style="display: block; margin-bottom: 10px; font-weight: bold; color: #8B0000;">
-                Tibetan Text:
+                藏语文本：
             </label>
             <textarea
                 id="text"
@@ -24,16 +24,16 @@
 
         <div style="display: flex; gap: 15px;">
             <button type="submit" class="btn btn-primary" id="submitBtn">
-                🚀 Generate Tutorial
+                🚀 生成教程
             </button>
-            <a href="/" class="btn btn-secondary">Cancel</a>
+            <a href="/" class="btn btn-secondary">取消</a>
         </div>
     </form>
 </div>
 
 <div class="card">
-    <h3>💡 Example Text</h3>
-    <p style="color: #666; margin-bottom: 15px;">Click to use this sample Tibetan text:</p>
+    <h3>💡 示例文本</h3>
+    <p style="color: #666; margin-bottom: 15px;">点击使用此示例藏语文本：</p>
     <code
         style="display: block; padding: 15px; background: #F5F5F5; border-radius: 8px; cursor: pointer; font-size: 1.1em;"
         onclick="document.getElementById('text').value = this.textContent;"
@@ -41,7 +41,7 @@
         བཀྲ་ཤིས་བདེ་ལེགས་ཞུ་བ་ཡིན། ཐུགས་རྗེ་ཆེ།
     </code>
     <p style="color: #999; margin-top: 10px; font-size: 0.9em;">
-        (Tashi delek su wa yin. Thuje che - Greetings and thank you)
+        （扎西德勒，谢谢）
     </p>
 </div>
 {% endblock %}
@@ -54,7 +54,7 @@ document.getElementById('createForm').addEventListener('submit', async function(
     const btn = document.getElementById('submitBtn');
     const text = document.getElementById('text').value;
 
-    btn.textContent = '⏳ Processing...';
+    btn.textContent = '⏳ 处理中...';
     btn.disabled = true;
 
     try {
@@ -71,13 +71,13 @@ document.getElementById('createForm').addEventListener('submit', async function(
         if (data.redirect) {
             window.location.href = data.redirect;
         } else {
-            alert('Error: ' + (data.detail || 'Unknown error'));
-            btn.textContent = '🚀 Generate Tutorial';
+            alert('错误：' + (data.detail || '未知错误'));
+            btn.textContent = '🚀 生成教程';
             btn.disabled = false;
         }
     } catch (error) {
-        alert('Error: ' + error.message);
-        btn.textContent = '🚀 Generate Tutorial';
+        alert('错误：' + error.message);
+        btn.textContent = '🚀 生成教程';
         btn.disabled = false;
     }
 });
