@@ -9,8 +9,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Job, Word, Output
 from app.schemas import JobCreate, JobResponse, ProgressResponse
-from app.services.tibetan_parser import segment_tibetan_text_async, fallback_extract, get_title_from_text
-from app.services.translator import translate_words
+from app.services.tibetan_parser import process_tibetan_text_async, get_title_from_text
 from app.services.html_generator import generate_tutorial_html
 from app.utils.ip_check import is_ip_allowed
 
@@ -34,59 +33,34 @@ async def process_job_async(job_id: str, db_url: str):
         job.status = "processing"
         db.commit()
 
-        # Extract phrases using AI-based segmentation
-        try:
-            words_data = await segment_tibetan_text_async(job.input_text)
-        except Exception as e:
-            print(f"AI segmentation failed, using fallback: {e}")
-            words_data = fallback_extract(job.input_text)
+        # Process text: segment and translate in one step
+        translations = await process_tibetan_text_async(job.input_text)
 
-        job.total_words = len(words_data)
-
-        if not words_data:
+        if not translations:
             job.status = "completed"
             job.completed_at = datetime.utcnow()
             db.commit()
             return
 
+        job.total_words = len(translations)
         db.commit()
 
-        # Store words in database
-        for order, word in words_data:
+        # Store words with translations
+        for idx, trans in enumerate(translations):
             db_word = Word(
                 job_id=job_id,
-                word_order=order,
-                tibetan_word=word,
-                processed=False
+                word_order=trans.get("order", idx),
+                tibetan_word=trans.get("tibetan"),
+                phonetic=trans.get("phonetic"),
+                chinese=trans.get("chinese"),
+                english=trans.get("english"),
+                processed=True
             )
             db.add(db_word)
-        db.commit()
+            job.processed_words += 1
+            db.commit()
 
-        # Get words to translate
-        tibetan_words = [w for _, w in words_data]
-
-        # Translate (already async)
-        translations = await translate_words(tibetan_words)
-
-        # Update words with translations
-        translation_map = {}
-        for t in translations:
-            tibetan_key = t.get("tibetan") or t.get("tibetan_word") or t.get("word")
-            if tibetan_key:
-                translation_map[tibetan_key] = t
-        db_words = db.query(Word).filter(Word.job_id == job_id).order_by(Word.word_order).all()
-
-        for db_word in db_words:
-            if db_word.tibetan_word in translation_map:
-                trans = translation_map[db_word.tibetan_word]
-                db_word.phonetic = trans.get("phonetic")
-                db_word.chinese = trans.get("chinese")
-                db_word.english = trans.get("english")
-                db_word.processed = True
-                job.processed_words += 1
-                db.commit()
-
-        # Mark as completed (HTML will be generated on-demand when downloading)
+        # Mark as completed
         job.status = "completed"
         job.completed_at = datetime.utcnow()
         db.commit()

@@ -7,31 +7,28 @@ from app.config import get_settings
 
 settings = get_settings()
 
-SEGMENT_PROMPT = """Analyze this Tibetan text and split it into meaningful phrases/words based on Tibetan grammar and context. Each phrase should be a complete semantic unit (like a word, compound word, or short phrase that makes sense together).
+PROCESS_PROMPT = """Analyze this Tibetan text and extract meaningful phrases with translations.
+
+For each phrase:
+- Keep compound words and names together (e.g., ཨོ་རྒྱན is ONE phrase, not split)
+- Group syllables that form semantic units together
+- Honorific prefixes should stay with their words
+
+Return ONLY a valid JSON array with NO markdown formatting:
+[{"tibetan": "phrase", "phonetic": "romanization", "chinese": "中文翻译", "english": "translation", "order": 0}]
 
 Tibetan text:
-{text}
-
-Return ONLY a valid JSON array of objects with NO markdown formatting. Each object should have:
-- "tibetan": the Tibetan phrase exactly as it appears in the text (with tsheg ་ between syllables if part of the same word)
-- "order": the position in the text (0-indexed)
-
-Important:
-- Keep compound words and names together (e.g., ཨོ་རྒྱན should be one phrase, not split)
-- Honorific prefixes should stay with their words (e.g., བཀུར་བ should stay together)
-- Common phrases that form semantic units should be grouped
-
-Example output: [{"tibetan": "བཀྲ་ཤིས་བདེ་ལེགས", "order": 0}, {"tibetan": "ཞུ་བ་ཡིན", "order": 1}]"""
+{text}"""
 
 
-async def segment_tibetan_text_async(text: str) -> List[Tuple[int, str]]:
+async def process_tibetan_text_async(text: str) -> List[Dict]:
     """
-    Use AI to intelligently segment Tibetan text into meaningful phrases.
-    Returns list of (order, phrase) tuples.
+    Use AI to segment and translate Tibetan text in one step.
+    Returns list of translation dictionaries.
     """
     text = text.strip()
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=120.0) as client:
         try:
             response = await client.post(
                 f"{settings.anthropic_base_url}/v1/messages",
@@ -42,9 +39,9 @@ async def segment_tibetan_text_async(text: str) -> List[Tuple[int, str]]:
                 },
                 json={
                     "model": "claude-sonnet-4-6",
-                    "max_tokens": 2048,
+                    "max_tokens": 4096,
                     "messages": [
-                        {"role": "user", "content": SEGMENT_PROMPT.format(text=text)}
+                        {"role": "user", "content": PROCESS_PROMPT.format(text=text)}
                     ]
                 }
             )
@@ -52,50 +49,60 @@ async def segment_tibetan_text_async(text: str) -> List[Tuple[int, str]]:
             if response.status_code == 200:
                 data = response.json()
                 content = data.get("content", [{}])[0].get("text", "")
-                return parse_segment_response(content)
+                return parse_process_response(content)
             else:
-                # Fallback to simple tsheg splitting
-                return fallback_extract(text)
+                print(f"API error: {response.status_code} - {response.text}")
+                return []
 
         except Exception as e:
-            print(f"Error segmenting text: {e}")
-            return fallback_extract(text)
+            print(f"Error processing text: {e}")
+            return []
 
 
-def parse_segment_response(content: str) -> List[Tuple[int, str]]:
+def parse_process_response(content: str) -> List[Dict]:
     """
-    Parse the JSON response from the segmentation API.
+    Parse the JSON response from the processing API.
     """
     try:
         # Clean up the response
         content = content.strip()
         if content.startswith("```"):
             lines = content.split("\n")
-            content = "\n".join(lines[1:-1] if lines[-1] == "```" else lines[1:])
+            # Remove first line (```json or ```) and last line (```)
+            content = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
         content = content.strip()
 
         parsed = json.loads(content)
 
         if isinstance(parsed, list):
-            phrases = []
+            results = []
             seen = set()
             for item in parsed:
                 if not isinstance(item, dict):
                     continue
-                tibetan = item.get("tibetan", "")
-                order = item.get("order", len(phrases))
 
-                if tibetan and tibetan not in seen:
-                    phrases.append((order, tibetan))
-                    seen.add(tibetan)
+                tibetan = item.get("tibetan", "")
+                if not tibetan or tibetan in seen:
+                    continue
+                seen.add(tibetan)
+
+                results.append({
+                    "tibetan": tibetan,
+                    "phonetic": item.get("phonetic"),
+                    "chinese": item.get("chinese"),
+                    "english": item.get("english"),
+                    "order": item.get("order", len(results))
+                })
 
             # Sort by order
-            phrases.sort(key=lambda x: x[0])
-            return phrases
+            results.sort(key=lambda x: x.get("order", 0))
+            return results
 
         return []
 
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        print(f"JSON parse error: {e}")
+        print(f"Content: {content[:500]}")
         return []
 
 
@@ -124,30 +131,17 @@ def fallback_extract(text: str) -> List[Tuple[int, str]]:
 
 def extract_tibetan_words(text: str) -> List[Tuple[int, str]]:
     """
-    Extract Tibetan phrases from text using AI-based segmentation.
-    Sync wrapper for async function.
-
-    Returns list of (order, phrase) tuples.
+    Extract Tibetan phrases - now returns empty list since we use combined processing.
+    Kept for compatibility.
     """
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # If called from async context, create new loop
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(asyncio.run, segment_tibetan_text_async(text))
-                return future.result()
-        else:
-            return loop.run_until_complete(segment_tibetan_text_async(text))
-    except RuntimeError:
-        # No event loop, create one
-        return asyncio.run(segment_tibetan_text_async(text))
+    return []
 
 
 def get_title_from_text(text: str, max_words: int = 5) -> str:
     """
     Generate a title from the first few phrases of Tibetan text.
+    Uses simple extraction for title generation.
     """
-    words = extract_tibetan_words(text)
+    words = fallback_extract(text)
     title_words = [w for _, w in words[:max_words]]
     return '་'.join(title_words) if title_words else "无标题"
