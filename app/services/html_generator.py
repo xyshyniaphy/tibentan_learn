@@ -206,6 +206,7 @@ def generate_tutorial_html(words: List[Word], title: str) -> str:
         phonetic = word.phonetic or "-"
         chinese = word.chinese or "-"
         english = word.english or "-"
+        pos = f"（{word.pos}）" if word.pos else ""
 
         html_content += f"""                <tr>
                     <td>
@@ -213,7 +214,7 @@ def generate_tutorial_html(words: List[Word], title: str) -> str:
                         <div class="tibetan">{word.tibetan_word}</div>
                     </td>
                     <td class="phonetic">{phonetic}</td>
-                    <td class="chinese">{chinese}</td>
+                    <td class="chinese">{chinese}{pos}</td>
                     <td class="english">{english}</td>
                 </tr>
 """

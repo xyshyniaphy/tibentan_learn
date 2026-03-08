@@ -5,16 +5,17 @@ from app.config import get_settings
 
 settings = get_settings()
 
-PROCESS_PROMPT = """Analyze this Tibetan text and extract meaningful phrases with translations.
+PROCESS_PROMPT = """Analyze this Tibetan text and extract each individual meaningful word with translation.
 
 Rules:
-- Group syllables that form semantic units together (compound words, names, phrases)
-- Do NOT split on tsheg (་) - keep meaningful phrases together
-- Example: ཨོ་རྒྱན should be ONE phrase, not split into ཨོ and རྒྱན
-- Example: བསྐུར་བྱིན་བརླབས should be ONE phrase meaning "blessed/empowered"
+- Split into INDIVIDUAL words (not phrases or sentences)
+- Each word should be a single lexical unit (noun, verb, adjective, particle, etc.)
+- Example: གནོད་པ་གཞན་ should be TWO words: གནོད་པ་ (harm) and གཞན་ (other)
+- Example: བཀྲ་ཤིས་བདེ་ལེགས་ should be TWO words: བཀྲ་ཤིས་ (auspicious) and བདེ་ལེགས་ (well-being)
+- Include part of speech for each word
 
 Return ONLY a valid JSON array with NO markdown formatting:
-[{{"tibetan": "phrase", "phonetic": "romanization", "chinese": "中文翻译", "english": "translation", "order": 0}}]
+[{{"tibetan": "word", "phonetic": "wylie", "chinese": "中文含义（词性）", "english": "meaning", "pos": "noun/verb/etc", "order": 0}}]
 
 Tibetan text:
 {text}"""
@@ -105,6 +106,7 @@ def parse_process_response(content: str) -> List[Dict]:
                 "phonetic": item.get("phonetic"),
                 "chinese": item.get("chinese"),
                 "english": item.get("english"),
+                "pos": item.get("pos"),
                 "order": item.get("order", len(results))
             })
 

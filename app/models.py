@@ -31,6 +31,7 @@ class Word(Base):
     phonetic = Column(String)
     chinese = Column(String)
     english = Column(String)
+    pos = Column(String)  # part of speech
     processed = Column(Boolean, default=False)
 
     job = relationship("Job", back_populates="words")

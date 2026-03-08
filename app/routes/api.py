@@ -59,6 +59,7 @@ async def process_job_async(job_id: str, db_url: str):
                 phonetic=trans.get("phonetic"),
                 chinese=trans.get("chinese"),
                 english=trans.get("english"),
+                pos=trans.get("pos"),
                 processed=True
             )
             db.add(db_word)
